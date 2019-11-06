@@ -68,6 +68,12 @@ namespace Discord.Rest
             if (args.SystemChannelFlags.IsSpecified)
                 apiArgs.SystemChannelFlags = args.SystemChannelFlags.Value;
 
+            // PreferredLocale takes precedence over PreferredCulture
+            if (args.PreferredLocale.IsSpecified)
+                apiArgs.PreferredLocale = args.PreferredLocale.Value;
+            else if (args.PreferredCulture.IsSpecified)
+                apiArgs.PreferredLocale = args.PreferredCulture.Value.Name;
+
             return await client.ApiClient.ModifyGuildAsync(guild.Id, apiArgs, options).ConfigureAwait(false);
         }
         /// <exception cref="ArgumentNullException"><paramref name="func"/> is <c>null</c>.</exception>
@@ -343,7 +349,7 @@ namespace Discord.Rest
             ulong? fromUserId, int? limit, RequestOptions options)
         {
             return new PagedAsyncEnumerable<RestGuildUser>(
-                DiscordConfig.MaxMessagesPerBatch,
+                DiscordConfig.MaxUsersPerBatch,
                 async (info, ct) =>
                 {
                     var args = new GetGuildMembersParams
@@ -357,7 +363,7 @@ namespace Discord.Rest
                 },
                 nextPage: (info, lastPage) =>
                 {
-                    if (lastPage.Count != DiscordConfig.MaxMessagesPerBatch)
+                    if (lastPage.Count != DiscordConfig.MaxUsersPerBatch)
                         return false;
                     info.Position = lastPage.Max(x => x.Id);
                     return true;
@@ -380,7 +386,7 @@ namespace Discord.Rest
 
         // Audit logs
         public static IAsyncEnumerable<IReadOnlyCollection<RestAuditLogEntry>> GetAuditLogsAsync(IGuild guild, BaseDiscordClient client,
-            ulong? from, int? limit, RequestOptions options)
+            ulong? from, int? limit, RequestOptions options, ulong? userId = null, ActionType? actionType = null)
         {
             return new PagedAsyncEnumerable<RestAuditLogEntry>(
                 DiscordConfig.MaxAuditLogEntriesPerBatch,
@@ -392,6 +398,10 @@ namespace Discord.Rest
                     };
                     if (info.Position != null)
                         args.BeforeEntryId = info.Position.Value;
+                    if (userId.HasValue)
+                        args.UserId = userId.Value;
+                    if (actionType.HasValue)
+                        args.ActionType = (int)actionType.Value;
                     var model = await client.ApiClient.GetAuditLogsAsync(guild.Id, args, options);
                     return model.Entries.Select((x) => RestAuditLogEntry.Create(client, model, x)).ToImmutableArray();
                 },

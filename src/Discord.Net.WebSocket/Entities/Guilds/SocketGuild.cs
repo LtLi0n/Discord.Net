@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -105,6 +106,11 @@ namespace Discord.WebSocket
         public string Description { get; private set; }
         /// <inheritdoc />
         public int PremiumSubscriptionCount { get; private set; }
+        /// <inheritdoc />
+        public string PreferredLocale { get; private set; }
+
+        /// <inheritdoc />
+        public CultureInfo PreferredCulture { get; private set; }
 
         /// <inheritdoc />
         public DateTimeOffset CreatedAt => SnowflakeUtils.FromSnowflake(Id);
@@ -374,6 +380,8 @@ namespace Discord.WebSocket
             SystemChannelFlags = model.SystemChannelFlags;
             Description = model.Description;
             PremiumSubscriptionCount = model.PremiumSubscriptionCount.GetValueOrDefault();
+            PreferredLocale = model.PreferredLocale;
+            PreferredCulture = new CultureInfo(PreferredLocale);
 
             if (model.Emojis != null)
             {
@@ -801,12 +809,15 @@ namespace Discord.WebSocket
         /// </summary>
         /// <param name="limit">The number of audit log entries to fetch.</param>
         /// <param name="options">The options to be used when sending the request.</param>
+        /// <param name="beforeId">The audit log entry ID to filter entries before.</param>
+        /// <param name="actionType">The type of actions to filter.</param>
+        /// <param name="userId">The user ID to filter entries for.</param>
         /// <returns>
         ///     A task that represents the asynchronous get operation. The task result contains a read-only collection
         ///     of the requested audit log entries.
         /// </returns>
-        public IAsyncEnumerable<IReadOnlyCollection<RestAuditLogEntry>> GetAuditLogsAsync(int limit, RequestOptions options = null)
-            => GuildHelper.GetAuditLogsAsync(this, Discord, null, limit, options);
+        public IAsyncEnumerable<IReadOnlyCollection<RestAuditLogEntry>> GetAuditLogsAsync(int limit, RequestOptions options = null, ulong? beforeId = null, ulong? userId = null, ActionType? actionType = null)
+            => GuildHelper.GetAuditLogsAsync(this, Discord, beforeId, limit, options, userId: userId, actionType: actionType);
 
         //Webhooks
         /// <summary>
@@ -1160,10 +1171,11 @@ namespace Discord.WebSocket
             => Task.FromResult<IGuildUser>(Owner);
 
         /// <inheritdoc />
-        async Task<IReadOnlyCollection<IAuditLogEntry>> IGuild.GetAuditLogsAsync(int limit, CacheMode cacheMode, RequestOptions options)
+        async Task<IReadOnlyCollection<IAuditLogEntry>> IGuild.GetAuditLogsAsync(int limit, CacheMode cacheMode, RequestOptions options,
+            ulong? beforeId, ulong? userId, ActionType? actionType)
         {
             if (cacheMode == CacheMode.AllowDownload)
-                return (await GetAuditLogsAsync(limit, options).FlattenAsync().ConfigureAwait(false)).ToImmutableArray();
+                return (await GetAuditLogsAsync(limit, options, beforeId: beforeId, userId: userId, actionType: actionType).FlattenAsync().ConfigureAwait(false)).ToImmutableArray();
             else
                 return ImmutableArray.Create<IAuditLogEntry>();
         }
